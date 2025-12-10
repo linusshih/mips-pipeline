@@ -1,5 +1,11 @@
 `timescale 1ns / 1ps
 
+`include "control.v"
+`include "idExLatch.v"
+`include "regfile.v"
+`include "signExt.v"
+
+
 module decode(
     input wire          clk,
                         rst,
@@ -75,140 +81,4 @@ module decode(
         .instr_bits_15_11_out(id_ex_instr_bits_15_11)
     );
 
-endmodule
-
-module signExt(
-    input wire [15:0] immediate,
-    output wire [31:0] extended
-);
-
-    assign extended = {{16{immediate[15]}}, immediate};
-endmodule
-
-module regfile(
-    input wire clk, rst, regwrite, 
-    input wire [4:0] rs, rt, rd,
-    input wire [31:0] writedata,
-    output wire [31:0] A_readdat1, B_readdat2   
-);
-
-    reg [31:0] REG [0:31];
-    
-    // Initialize registers
-    initial begin
-        REG[0] = 32'b0;  // r0 must be 0
-        // rest can start 0
-    end
-    
-    // Write on clock
-    always @(posedge clk) begin
-        if (regwrite && rd != 0)   // r0 cannot be written
-            REG[rd] <= writedata;
-    end
-
-    // Combinational reads
-    assign A_readdat1 = REG[rs];
-    assign B_readdat2 = REG[rt];
-
-endmodule
-
-
-module control(
-    input wire clk, rst,
-    input wire [5:0] opcode,
-    output reg [1:0] wb,
-    output reg [2:0] mem,
-    output reg [3:0] ex
-);
-    parameter RTYPE = 6'b000000;
-    parameter LW = 6'b100011; //load word
-    parameter SW = 6'b101011; //store word
-    parameter BEQ = 6'b000100; //branch equal 
-    parameter NOP = 6'b100000; //no op
-    
-    initial begin
-        wb = 2'd0;
-        mem = 3'd0;
-        ex = 4'd0;
-    end
-    
-    always @(posedge clk) begin
-        if (rst) begin
-            wb <= 2'd0;
-            mem <= 3'd0;
-            ex <= 4'd0;
-        end
-        case (opcode)
-            RTYPE: begin
-                wb <= 2'b10;
-                mem <= 3'b000;
-                ex <= 4'b1100;
-            end
-            
-            LW: begin
-                wb <= 2'b11;
-                mem <= 3'b010;
-                ex <= 4'b0001;
-            end
-            
-            SW: begin
-                wb <= 2'b00;
-                mem <= 3'b001;
-                ex <= 4'b0001;
-            end
-            
-            BEQ: begin
-                wb <= 2'b00;
-                mem <= 3'b100;
-                ex <= 4'b0100;
-            end
-            
-            default: begin 
-                wb <= 2'b0;
-                mem <= 3'b0;
-                ex <= 4'b0;
-            end
-        endcase
-    end
-endmodule
-
-module idExLatch(
-    input wire clk, rst,
-    input wire [1:0] ctl_wb,
-    input wire [2:0] ctl_mem,
-    input wire [3:0] ctl_ex,
-    input wire [31:0] npc, readdat1, readdat2, sign_ext, 
-    input wire [4:0] instr_bits_20_16, instr_bits_15_11, 
-    output reg [1:0] wb_out, 
-    output reg [2:0] mem_out,
-    output reg [3:0] ctl_out,
-    output reg [31:0] npc_out, readdat1_out, readdat2_out, sign_ext_out, 
-    output reg [4:0] instr_bits_20_16_out, instr_bits_15_11_out
-);
-    
-    always @(posedge clk) begin
-        if (rst) begin
-            wb_out <= 2'b00;
-            mem_out <= 3'b000;
-            ctl_out <= 4'b0000;
-            npc_out <= 32'b0;
-            readdat1_out <= 32'b0;
-            readdat2_out <= 32'b0;
-            sign_ext_out <= 32'b0;
-            instr_bits_20_16_out <= 5'b00000;
-            instr_bits_15_11_out <= 5'b00000;
-        end
-        else begin
-            wb_out <= ctl_wb;
-            wb_out <= ctl_wb;
-            mem_out <= ctl_mem;
-            ctl_out <= ctl_ex;
-            npc_out <= npc;
-            readdat1_out <= readdat1;
-            readdat2_out <= readdat2;
-            sign_ext_out <= sign_ext;
-            instr_bits_20_16_out <= instr_bits_20_16;
-            instr_bits_15_11_out <= instr_bits_15_11;
-        end
-    end    
 endmodule
